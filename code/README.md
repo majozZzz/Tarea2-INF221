@@ -24,6 +24,44 @@ code/grid_pathfinding/
 └── makefile
 ```
 
+### Algoritmos
+#### Fuerza bruta
+Backtracking recursivo (`explorePaths`) que recorre todos los caminos monótonos
+desde la celda inicial hasta la meta. En cada celda prueba primero `R` y luego `D`;
+el camino actual se mantiene en un único `std::string` al que se le hace
+`push_back` antes de recursar y `pop_back` al volver. Al llegar a la meta,
+compara el puntaje con el mejor encontrado y lo reemplaza solo si es
+estrictamente mayor.
+
+Solo se descartan ramas que pisan una muralla o dejan al rover sin vidas
+(`vidas <= 0`). En empate de puntaje se conserva el primer camino hallado (`R`
+antes que `D`). Además, en cada llamada se registra la profundidad de pila
+alcanzada para medir la memoria de la recursión.
+
+#### Programación dinámica:
+Tabulación bottom-up, sin recursión. El estado `(i, j, l)` es el mejor puntaje al
+llegar a `(i, j)` con exactamente `l` vidas restantes:
+
+Las celdas se recorren por filas. Las murallas se saltan y quedan con un valor
+centinela (`NEG`) que representa "inalcanzable", así que no hace falta
+revisarlas al leer vecinos.
+
+Se usan dos arreglos planos de tamaño N·M·(V+1): `dp` (`long long`) y `from` (1
+byte, `R` o `D`: de qué vecino se llegó). El camino se reconstruye desde la
+meta siguiendo `from`; al retroceder por una mina se devuelve la vida
+(`l + 1`). Si hay empate entre vecinos, gana `R`; si hay empate en el puntaje
+final, se prefiere terminar con más vidas.
+
+#### Greedy
+Implementa la regla del enunciado, sin retroceso. En cada paso evalúa las
+celdas a la derecha y abajo y descarta las que están fuera de la grilla, las
+murallas y las minas cuando queda 1 vida. Entre las restantes avanza a la de
+mayor ganancia neta (`g` si es normal, `-P` si es mina). La comparación es
+estrictamente mayor y `R` se evalúa primero, así que en empate gana `R`. Si no
+queda ninguna candidata, retorna `SIN SOLUCION`.
+
+
+
 ### Progama Principal
 #### Flujo del programa
 
@@ -138,11 +176,7 @@ con `make testcases`). Produce las 288 instancias en `data/grid_input/`.
 
 Lee los CSV de `data/measurements/` (`bruteforce.csv`, `dp.csv`, `greedy.csv`)
 y guarda 8 gráficos PNG en `data/plots/`. Si falta algún CSV, avisa y omite sus
-gráficos. Se ejecuta con `make plot` (o dentro de `make all`), o directamente:
-
-```bash
-python3 scripts/plot_generator.py
-```
+gráficos. Se ejecuta con `make plot` (o dentro de `make all`)
 
 Las rutas se calculan a partir de la ubicación del script, por lo que se puede
 ejecutar desde cualquier directorio. Requiere `numpy`, `pandas` y `matplotlib`.
@@ -151,7 +185,7 @@ Usa el backend `Agg`, que solo escribe archivos y no necesita pantalla.
 ##### Gráficos generados
 
 | Archivo | Contenido |
-|---|---|
+|---------|-----------|
 | `time_bruteforce.png`, `time_dp.png`, `time_greedy.png` | Tiempo de ejecución (ns) vs tamaño N·M, con una curva por tipo de grilla y la curva teórica escalada. |
 | `mem_bruteforce.png`, `mem_dp.png`, `mem_greedy.png` | Memoria máxima (bytes) vs tamaño N·M, con una curva por tipo de grilla y la curva teórica. |
 | `gap_vs_size.png` | Brecha media Δ = s(C\*) − s(C_greedy) vs tamaño, en dos paneles (D10 y D1000). Solo se promedian los casos en que greedy no falla. |
@@ -160,8 +194,7 @@ Usa el backend `Agg`, que solo escribe archivos y no necesita pantalla.
 ##### Cómo se construyen las curvas
 
 - Cada punto es el **promedio** de las muestras a, b y c; en tiempo y memoria
-  también se promedian ambos dominios. Con tres muestras por punto, la tasa de
-  falla solo puede valer 0, 33, 67 o 100 %.
+  también se promedian ambos dominios.
 - Los ejes de tamaño (N·M) están en escala logarítmica base 2. Tiempo y memoria
   también usan eje y logarítmico. Los valores 0 (por ejemplo, memoria 0 por la
   optimización SSO de `std::string` en grillas pequeñas) no se pueden dibujar
@@ -171,7 +204,7 @@ Usa el backend `Agg`, que solo escribe archivos y no necesita pantalla.
 ##### Curvas teóricas
 
 | Gráfico | Curva teórica f(N, M) |
-|---|---|
+|---------|-----------------------|
 | Tiempo, fuerza bruta | C(N+M−2, N−1) |
 | Tiempo, DP | N·M·V |
 | Tiempo, greedy | N+M |
@@ -190,23 +223,5 @@ nivel.
 
 > log c = media( log yᵢ − log fᵢ )   ⟹   c = media geométrica de yᵢ / fᵢ
 
-Solo se usa la grilla `libre` (sin podas) y solo los tamaños dentro de una
-**ventana de calibración**, que se sombrea en cada gráfico. La ventana excluye
-los tamaños donde la teoría no debería valer:
-
-| Gráfico | Ventana (N·M) | Motivo |
-|---|---|---|
-| Tiempo greedy | ≥ 4096 | Antes domina el costo fijo del reloj. |
-| Tiempo DP | 128 a 8192 | Antes domina el costo fijo; después la tabla no cabe en caché y el costo por celda sube. |
-| Tiempo fuerza bruta | todos | El costo por camino es casi constante desde el inicio. |
-| Memoria fuerza bruta y greedy | todos los valores > 0 | — |
-
-Fuera de la ventana la curva teórica se sigue dibujando, y ahí se ve si los
-datos calzan o se separan. El script imprime por consola la constante c de cada
-gráfico, con un significado físico (por ejemplo, ns por paso en greedy o ns por
-camino en fuerza bruta).
-
-##### Parámetros editables
-
-Al inicio del script: `V` (vidas, 3), `TIPOS`, `DOMINIOS`, los diccionarios
-`TEORIA_TIEMPO` y `VENTANA_CALIBRACION`, y los estilos de las curvas.
+Solo se usa la grilla `libre` (sin podas) y todos los tamaños con valor > 0.
+El script imprime por consola la constante c de cada gráfico, con un significado físico (por ejemplo, ns por paso en greedy o ns por camino en fuerza bruta).

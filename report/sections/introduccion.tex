@@ -1,5 +1,2 @@
-\begin{mdframed}
-    \textbf{La extensión máxima para esta sección es un párrafo breve (máximo 1/4 de página).}
-\end{mdframed}
-
-Escriba una introducción breve que presente los dos problemas estudiados (ordenamiento de arreglos unidimensionales y multiplicación de matrices cuadradas) y el objetivo del análisis experimental: relacionar el comportamiento práctico de los algoritmos con su complejidad teórica.
+Se presenta el problema de búsqueda de rutas sobre grillas, al cual se incorporan obstáculos y riesgos. Un rover debe atravesar una cuadrícula de N x M desde la esquina superior izquierda hasta la inferior derecha, avanzando únicamente hacia la derecha o abajo, evitando murallas y administrando un número limitado de vidas que se consumen al detonar minas, cada una con una penalizacióñ de P puntos, con el fin de maximizar el puntaje acumulado. Para resolverlo se consideran tres enfoques: la fuerza bruta, que enumera exhaustivamente los $\binom{N + M - 2}{N - 1}$ caminos posible con costo exponencial; la programación dinámica, que aprovecha la subestructura óptima incorporando las vidas restantes al estado y resuelve el problema en $O(NMV)$; y un algoritmo greedy de decisión local, de costo lineal pero in garantía de optimalidad ni de alcanzar la meta.
+El objetivo es contrastar el tiempo de ejecución y el consumo de memoria medidos con las cotas asintóticas de cada paradigma, y cuantificar los resultados de greedy mediante su brecha respecto al óptimo y su talla de falla, comparando según tamaño, tipo, y dominio de la grilla

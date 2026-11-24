@@ -26,26 +26,19 @@ ESTILO = {
 
 # Teoría de tiempo: f(N, M) y etiqueta
 TEORIA_TIEMPO = {
-    "bruteforce": (lambda n, m: float(math.comb(n + m - 2, n - 1)), r"Teórico $\binom{N+M-2}{N-1}$ (escalado)"),
-    "dp":         (lambda n, m: float(n * m * V),                   r"Teórico $N\cdot M\cdot V$ (escalado)"),
-    "greedy":     (lambda n, m: float(n + m),                       r"Teórico $N+M$ (escalado)"),
+    "bruteforce": (lambda n, m: float(math.comb(n + m - 2, n - 1)),
+                   r"Teórico $\binom{N+M-2}{N-1}$ (escalado)"),
+    "dp":         (lambda n, m: float(n * m * V),
+                   r"Teórico $N\cdot M\cdot V$ (escalado)"),
+    "greedy":     (lambda n, m: float(n + m),
+                   r"Teórico $N+M$ (escalado)"),
 }
 
-# Ventana de calibración (tamaño mínimo, tamaño máximo) en N*M; None = sin límite.
-#  - greedy/tiempo: desde 4096 celdas (antes domina el costo fijo del reloj).
-#  - dp/tiempo: de 128 a 8192 celdas (sobre 128 se descarta el costo fijo; hasta 8192 la
-#    tabla cabe en caché, por encima aparece el efecto de la jerarquía de memoria).
-#  - fuerza bruta: todos los puntos (el costo por camino es ~constante desde el inicio).
-#  - memoria (fuerza bruta, greedy): todos los puntos con valor > 0.
-VENTANA_CALIBRACION = {
-    ("greedy", "time_ns"):     (4096, None),
-    ("dp", "time_ns"):         (128, 8192),
-    ("bruteforce", "time_ns"): (None, None),
-    ("bruteforce", "mem_bytes"): (None, None),
-    ("greedy", "mem_bytes"):   (None, None),
-}
-
-NOMBRE_ALGORITMO = {"bruteforce": "Fuerza bruta", "dp": "Programación dinámica", "greedy": "Greedy"}
+NOMBRE_ALGORITMO = {
+    "bruteforce": "Fuerza bruta",
+    "dp": "Programación dinámica",
+    "greedy": "Greedy"
+    }
 
 
 # --- Carga de datos ---
@@ -71,7 +64,6 @@ def formatear_x(ax, sizes):
 
 
 def dibujar_curvas(ax, tab):
-    """tab: DataFrame con índice = tamaño y una columna por tipo de grilla."""
     for tipo in TIPOS:
         if tipo not in tab.columns:
             continue
@@ -81,31 +73,18 @@ def dibujar_curvas(ax, tab):
 
 
 def tabla_por_tipo(df, col):
-    """Promedio de `col` por (tamaño, tipo): filas = tamaño, columnas = tipo."""
     return df.groupby(["size", "tipo"])[col].mean().unstack("tipo").sort_index()
 
 
 def dimensiones(df):
-    """Tamaño -> (n, m)."""
     return df.drop_duplicates("size").set_index("size")[["n", "m"]].sort_index()
 
 
-def calibrar(tab, f_vals, ventana=(None, None)):
-    """
-    Constante c tal que c*f aproxima los datos, por mínimos cuadrados en escala log:
-        c = exp( media( log(y_i) - log(f_i) ) )   (media geométrica de y_i / f_i)
-    Se usa la grilla "libre" (sin podas) y solo los tamaños dentro de `ventana`.
-    Retorna (c, cantidad de puntos usados).
-    """
+def calibrar(tab, f_vals):
     ref = tab["libre"] if "libre" in tab.columns else tab.mean(axis=1)
-    lo, hi = ventana
-    mascara = (ref > 0) & (f_vals > 0)          # log(0) no existe (p. ej. memoria 0 por SSO)
-    if lo is not None:
-        mascara &= pd.Series(ref.index >= lo, index=ref.index)
-    if hi is not None:
-        mascara &= pd.Series(ref.index <= hi, index=ref.index)
+    mascara = (ref > 0) & (f_vals > 0)
     if not mascara.any():
-        print("[AVISO] ventana de calibración vacía; se usa c = 1.")
+        print("[AVISO] sin puntos para calibrar; se usa c = 1.")
         return 1.0, 0
     c = float(np.exp(np.mean(np.log(ref[mascara]) - np.log(f_vals[mascara]))))
     return c, int(mascara.sum())
@@ -118,19 +97,17 @@ def grafico_vs_tamano(df, algoritmo, columna, ylabel, titulo, archivo):
     sizes = list(tab.index)
 
     es_memoria = columna == "mem_bytes"
-    ventana = VENTANA_CALIBRACION.get((algoritmo, columna), (None, None))
     if es_memoria and algoritmo == "dp":
         f = pd.Series([n * m * (V + 1) * 9 for n, m in zip(dims["n"], dims["m"])], index=tab.index, dtype=float)
         c, etiqueta = 1.0, r"Teórico $N\cdot M\cdot(V+1)\cdot 9$ bytes"
-        ventana = (None, None)                  # teoría exacta: no se calibra
         print(f"{archivo}: teoría exacta (c = 1, sin calibración)")
     else:
         funcion, etiqueta = TEORIA_TIEMPO[algoritmo]
         if es_memoria:
             funcion, etiqueta = (lambda n, m: float(n + m)), r"Teórico $N+M$ (escalado)"
         f = pd.Series([funcion(n, m) for n, m in zip(dims["n"], dims["m"])], index=tab.index)
-        c, k = calibrar(tab, f, ventana)
-        print(f"{archivo}: c = {c:.4g} (ajuste log-LS con {k} puntos, ventana = {ventana})")
+        c, k = calibrar(tab, f)
+        print(f"{archivo}: c = {c:.4g} (ajuste log-LS con {k} puntos)")
 
     ceros = int((tab <= 0).sum().sum())
     if ceros:
@@ -143,11 +120,6 @@ def grafico_vs_tamano(df, algoritmo, columna, ylabel, titulo, archivo):
     ax.set_yscale("log")
     formatear_x(ax, sizes)
 
-    lo, hi = ventana
-    if lo is not None or hi is not None:        # sombrear la ventana usada para calibrar
-        ax.axvspan(lo if lo is not None else sizes[0], hi if hi is not None else sizes[-1],
-                   color="gray", alpha=0.10, label="ventana de calibración")
-
     ax.set_ylabel(ylabel)
     ax.set_title(titulo)
     ax.legend(fontsize=8)
@@ -157,7 +129,7 @@ def grafico_vs_tamano(df, algoritmo, columna, ylabel, titulo, archivo):
     print(f"Generado: {archivo}")
 
 
-# --- Brecha vs tamaño (2 subpaneles) ---
+# --- Brecha vs tamaño ---
 def grafico_brecha(g):
     sizes = sorted(g["size"].unique())
     validos = g.dropna(subset=["gap"])
@@ -177,7 +149,7 @@ def grafico_brecha(g):
     print("Generado: gap_vs_size.png")
 
 
-# --- Tasa de falla vs tamaño (2 subpaneles) ---
+# --- Tasa de falla vs tamaño ---
 def grafico_falla(g):
     sizes = sorted(g["size"].unique())
     fig, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=True)

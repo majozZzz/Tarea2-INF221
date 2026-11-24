@@ -1,3 +1,7 @@
+// swolf. (2024, 25 de enero). How to measure memory usage in C++. Life Is A Journey. https://mrswolf.github.io/memory-usage-cpp/
+// Free Software Foundation. (s.f.). Getting the return or frame address of a function. En Using the GNU Compiler Collection (GCC). Recuperado el 24 de noviembre de 2026, de https://gcc.gnu.org/onlinedocs/gcc/Return-Address.html
+// Stack Exchange. (2014, 13 de marzo). Measuring execution time of a function in C++ [Pregunta en un foro]. Stack Overflow. https://stackoverflow.com/questions/22387586/measuring-execution-time-of-a-function-in-c
+// Stack Exchange. (2009, 20 de julio). Any reason to overload global new and delete? [Pregunta en un foro]. Stack Overflow. https://stackoverflow.com/questions/1152511/any-reason-to-overload-global-new-and-delete
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -42,16 +46,15 @@ void operator delete(void* memory) noexcept {
 // --- Estructuras de Datos ---
 struct Grid {
     int n, m, v, p;
-    std::vector<std::vector<int>> types;          // 1: normal, 0: muralla, -1: mina
-    std::vector<std::vector<long long>> values;   // valor científico g_i,j
+    std::vector<std::vector<int>> types;
+    std::vector<std::vector<long long>> values;
 };
 
 // --- Medición de Tiempo ---
-// Todos los tiempos se miden en nanosegundos con steady_clock (reloj monótono).
 // La primera corrida mide tiempo y memoria. Si fue muy rápida (< 1 ms) el resultado es
 // ruidoso, así que se repite el algoritmo y se reporta el MÍNIMO de todas las corridas.
 // La memoria siempre se toma de la primera corrida.
-static volatile long long sink = 0; // evita que el compilador elimine las corridas repetidas
+static volatile long long sink = 0;
 
 template <class F>
 long long refineTimeNs(long long first_ns, F&& solve) {
@@ -85,7 +88,7 @@ bool readGrid(const std::string& path, Grid& g) {
     return static_cast<bool>(in);
 }
 
-// --- Guardar Archivo de Salida (_out.txt) ---
+// --- Guardar Archivo de Salida ---
 void saveOutputFile(const fs::path& output_path, const PathResult& res) {
     std::ofstream out(output_path);
     if (!res.found) {
@@ -106,7 +109,6 @@ void writeRow(std::ofstream& out, const Grid& g, const std::string& t, const std
 }
 
 // --- Firmas de los Algoritmos ---
-// Definido en brute_force.cpp: pico de stack de la recursión (bytes).
 extern std::size_t bf_peak_stack_bytes;
 PathResult solveBruteForce(int n, int m, int v, int p,
                            const std::vector<std::vector<int>>& types,
@@ -174,7 +176,7 @@ int main() {
         // --- FUERZA BRUTA ---
         const bool bf_ran = (g.n + g.m <= 32);
         PathResult res_bf{false, 0, "", 0};
-        long long time_bf = -1;   // ns; -1 si no se ejecutó
+        long long time_bf = -1;
         size_t mem_bf = 0;
 
         if (bf_ran) {
@@ -239,7 +241,6 @@ int main() {
             << ")\n";
         }
 
-        // El generador garantiza al menos un camino válido
         if (!res_dp.found) {
             std::cerr << "[ERROR] DP no encontró camino en " << base_name
             << " (se esperaba al menos uno)\n";
@@ -248,8 +249,7 @@ int main() {
         // Tasa de falla de Greedy
         bool greedy_failed = !res_g.found;
 
-        // Brecha Delta = s(C*) - s(C_greedy), definida solo cuando Greedy NO falló.
-        // Si has_gap es false, guardar NA en el CSV (no un 0, que sería una brecha real).
+        //Brecha de Greedy
         bool has_gap = false;
         long long gap = 0;
         if (!greedy_failed && res_dp.found) {
